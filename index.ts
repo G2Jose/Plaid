@@ -11,7 +11,7 @@ import plaid from 'plaid'
 import { PLAID_ENV, PLAID_PRODUCTS, PLAID_COUNTRY_CODES } from './constants'
 import { PLAID_CLIENT_ID, PLAID_SECRET, PLAID_PUBLIC_KEY } from './.env'
 
-const APP_PORT = envvar.number('APP_PORT', 8000)
+const APP_PORT = 8000
 
 let ACCESS_TOKEN: string
 let PUBLIC_TOKEN: string
@@ -22,7 +22,7 @@ const client = new plaid.Client(
   PLAID_SECRET,
   PLAID_PUBLIC_KEY,
   plaid.environments[PLAID_ENV],
-  { version: '1.0.0' }
+  { version: '2019-05-29', clientApp: 'Plaid Quickstart' }
 )
 
 const app = express()
@@ -36,69 +36,62 @@ app.use(
 app.use(bodyParser.json())
 
 app.get('/', function(request, response, next) {
-  response.render('index.ejs', {
+  const params = {
     PLAID_PUBLIC_KEY: PLAID_PUBLIC_KEY,
     PLAID_ENV: PLAID_ENV,
     PLAID_PRODUCTS: PLAID_PRODUCTS,
     PLAID_COUNTRY_CODES: PLAID_COUNTRY_CODES,
-  })
+  }
+  console.log('params', params)
+  response.render('index.ejs', params)
 })
 
-// Exchange token flow - exchange a Link public_token for
-// an API access_token
-// https://plaid.com/docs/#exchange-token-flow
 app.post('/get_access_token', function(request, response, next) {
   PUBLIC_TOKEN = request.body.public_token
-  client.exchangePublicToken(PUBLIC_TOKEN, function(error, tokenResponse) {
-    if (error != null) {
+
+  return client
+    .exchangePublicToken(PUBLIC_TOKEN)
+    .then((tokenResponse: plaid.TokenResponse) => {
+      ACCESS_TOKEN = tokenResponse.access_token
+      ITEM_ID = tokenResponse.item_id
+      prettyPrintResponse(tokenResponse)
+      return response.json({
+        access_token: ACCESS_TOKEN,
+        item_id: ITEM_ID,
+        error: null,
+      })
+    })
+    .catch((error: any) => {
       prettyPrintResponse(error)
       return response.json({
         error: error,
       })
-    }
-    ACCESS_TOKEN = tokenResponse.access_token
-    ITEM_ID = tokenResponse.item_id
-    prettyPrintResponse(tokenResponse)
-    response.json({
-      access_token: ACCESS_TOKEN,
-      item_id: ITEM_ID,
-      error: null,
     })
-  })
 })
 
-// Retrieve Transactions for an Item
-// https://plaid.com/docs/#transactions
 app.get('/transactions', function(request, response, next) {
-  // Pull transactions for the Item for the last 30 days
   const startDate = moment()
     .subtract(30, 'days')
     .format('YYYY-MM-DD')
   const endDate = moment().format('YYYY-MM-DD')
-  client.getTransactions(
-    ACCESS_TOKEN,
-    startDate,
-    endDate,
-    {
+
+  client
+    .getTransactions(ACCESS_TOKEN, startDate, endDate, {
       count: 250,
       offset: 0,
-    },
-    function(error, transactionsResponse) {
-      if (error != null) {
-        prettyPrintResponse(error)
-        return response.json({
-          error: error,
-        })
-      } else {
-        prettyPrintResponse(transactionsResponse)
-        response.json({ error: null, transactions: transactionsResponse })
-      }
-    }
-  )
+    })
+    .then((transactionsResponse: plaid.TransactionsResponse) => {
+      prettyPrintResponse(transactionsResponse)
+      return response.json({ error: null, transactions: transactionsResponse })
+    })
+    .catch((error: any) => {
+      prettyPrintResponse(error)
+      return response.json({
+        error: error,
+      })
+    })
 })
 
-// Retrieve Identity for an Item
-// https://plaid.com/docs/#identity
 app.get('/identity', function(request, response, next) {
   client.getIdentity(ACCESS_TOKEN, function(error, identityResponse) {
     if (error != null) {
@@ -112,8 +105,6 @@ app.get('/identity', function(request, response, next) {
   })
 })
 
-// Retrieve real-time Balances for each of an Item's accounts
-// https://plaid.com/docs/#balance
 app.get('/balance', function(request, response, next) {
   client.getBalance(ACCESS_TOKEN, function(error, balanceResponse) {
     if (error != null) {
@@ -127,8 +118,6 @@ app.get('/balance', function(request, response, next) {
   })
 })
 
-// Retrieve an Item's accounts
-// https://plaid.com/docs/#accounts
 app.get('/accounts', function(request, response, next) {
   client.getAccounts(ACCESS_TOKEN, function(error, accountsResponse) {
     if (error != null) {
@@ -142,8 +131,6 @@ app.get('/accounts', function(request, response, next) {
   })
 })
 
-// Retrieve ACH or ETF Auth data for an Item's accounts
-// https://plaid.com/docs/#auth
 app.get('/auth', function(request, response, next) {
   client.getAuth(ACCESS_TOKEN, function(error, authResponse) {
     if (error != null) {
@@ -157,8 +144,6 @@ app.get('/auth', function(request, response, next) {
   })
 })
 
-// Retrieve Holdings for an Item
-// https://plaid.com/docs/#investments
 app.get('/holdings', function(request, response, next) {
   client.getHoldings(ACCESS_TOKEN, function(error, holdingsResponse) {
     if (error != null) {
@@ -172,8 +157,6 @@ app.get('/holdings', function(request, response, next) {
   })
 })
 
-// Retrieve Investment Transactions for an Item
-// https://plaid.com/docs/#investments
 app.get('/investment_transactions', function(request, response, next) {
   const startDate = moment()
     .subtract(30, 'days')
@@ -197,21 +180,11 @@ app.get('/investment_transactions', function(request, response, next) {
   })
 })
 
-// Create and then retrieve an Asset Report for one or more Items. Note that an
-// Asset Report can contain up to 100 items, but for simplicity we're only
-// including one Item here.
-// https://plaid.com/docs/#assets
 app.get('/assets', function(request, response, next) {
-  // You can specify up to two years of transaction history for an Asset
-  // Report.
   const daysRequested = 10
 
-  // The `options` object allows you to specify a webhook for Asset Report
-  // generation, as well as information that you want included in the Asset
-  // Report. All fields are optional.
   const options = {
     client_report_id: 'Custom Report ID #123',
-    // webhook: 'https://your-domain.tld/plaid-webhook',
     user: {
       client_user_id: 'Custom User ID #456',
       first_name: 'Alice',
@@ -239,11 +212,7 @@ app.get('/assets', function(request, response, next) {
   })
 })
 
-// Retrieve information about an Item
-// https://plaid.com/docs/#retrieve-item
 app.get('/item', function(request, response, next) {
-  // Pull the Item - this includes information about available products,
-  // billed products, webhook information, and more.
   client.getItem(ACCESS_TOKEN, function(error, itemResponse) {
     if (error != null) {
       prettyPrintResponse(error)
@@ -251,7 +220,6 @@ app.get('/item', function(request, response, next) {
         error: error,
       })
     }
-    // Also pull information about the institution
     client.getInstitutionById(itemResponse.item.institution_id, function(
       err,
       instRes
@@ -281,10 +249,6 @@ const prettyPrintResponse = response => {
   console.log(util.inspect(response, { colors: true, depth: 4 }))
 }
 
-// This is a helper function to poll for the completion of an Asset Report and
-// then send it in the response to the client. Alternatively, you can provide a
-// webhook in the `options` object in your `/asset_report/create` request to be
-// notified when the Asset Report is finished being generated.
 const respondWithAssetReport = (
   numRetriesRemaining,
   assetReportToken,
