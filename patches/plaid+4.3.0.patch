@@ -1,13 +1,12 @@
 diff --git a/node_modules/plaid/index.d.ts b/node_modules/plaid/index.d.ts
-index a282929..173fc6d 100644
+index a282929..226630f 100644
 --- a/node_modules/plaid/index.d.ts
 +++ b/node_modules/plaid/index.d.ts
-@@ -574,7 +574,7 @@ declare module 'plaid' {
-   }
+@@ -575,6 +575,7 @@ declare module 'plaid' {
  
    interface ClientOptions extends CoreOptions {
--    version?: '2019-05-29';
-+    version?: string;
+     version?: '2019-05-29';
++    clientApp?: string
    }
  
    class Client {

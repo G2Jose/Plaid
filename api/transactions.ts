@@ -35,8 +35,10 @@ const getAllTransactions = async () => {
   return transactions
 }
 
-export const transactionsHandler = (request: Request, response: Response) => {
-  getAllTransactions().then(transactions => {
-    response.json({ transactions })
-  })
+export const transactionsHandler = async (
+  request: Request,
+  response: Response
+) => {
+  const transactions = await getAllTransactions()
+  return response.json({ transactions })
 }
