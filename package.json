@@ -15,7 +15,7 @@
     "ejs": "^3.0.1",
     "envvar": "^2.0.0",
     "eslint-plugin-prettier": "^3.1.2",
-    "express": "^4.17.1",
+    "express": "^4.17.3",
     "moment": "^2.24.0",
     "patch-package": "^6.2.0",
     "plaid": "^4.3.0",
